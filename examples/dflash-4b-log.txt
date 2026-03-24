@@ -1,0 +1,17 @@
+INFO:sglang.srt.model_executor.model_runner_kv_cache_mixin:Memory pool end. avail mem=82.94 GB
+[2, 10, 18, 26, 34]
+[2, 10, 18, 26, 34]
+[2, 10, 18, 26, 34]
+[2, 10, 18, 26, 34]
+[2, 10, 18, 26, 34]
+INFO:specforge.utils:Draft config: block_size=16, num_hidden_layers=5, num_target_layers=36
+INFO:specforge.utils:Draft model parameters: 537,427,200
+[2, 10, 18, 26, 34]
+INFO:specforge.utils:Using mask_token_id: 151669
+INFO:specforge.utils:dflash_config: {'mask_token_id': 151669, 'target_layer_ids': [1, 9, 17, 25, 33]}
+[2, 10, 18, 26, 34]
+[2, 10, 18, 26, 34]
+Generating train split: 207865 examples [00:10, 20034.89 examples/s]
+Generating train split: 78769 examples [00:03, 20045.40 examples/s]
+INFO:specforge.utils:Merged 2 train datasets into 286634 samples
+dataset is cached at ./cache/processed_dataset/08aff0a4bf6e03b2171f3dd04ca21a13.pkldataset is cached at ./cache/processed_dataset/08aff0a4bf6e03b2171f3dd04ca21a13.pkl

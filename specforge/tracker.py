@@ -91,12 +91,20 @@ class NoOpTracker(Tracker):
 class WandbTracker(Tracker):
     """Tracks experiments using Weights & Biases."""
 
+    @staticmethod
+    def _is_offline(args) -> bool:
+        env_mode = os.environ.get("WANDB_MODE", "")
+        return bool(getattr(args, "wandb_offline", False)) or env_mode.lower() == "offline"
+
     @classmethod
     def validate_args(cls, parser, args):
         if wandb is None:
             parser.error(
                 "To use --report-to wandb, you must install wandb: 'pip install wandb'"
             )
+
+        if cls._is_offline(args):
+            return
 
         if args.wandb_key is not None:
             return
@@ -128,10 +136,27 @@ class WandbTracker(Tracker):
     def __init__(self, args, output_dir: str):
         super().__init__(args, output_dir)
         if self.rank == 0:
-            wandb.login(key=args.wandb_key)
-            wandb.init(
-                project=args.wandb_project, name=args.wandb_name, config=vars(args)
-            )
+            offline = self._is_offline(args)
+            wandb_dir = getattr(args, "wandb_dir", None)
+
+            init_kwargs = {
+                "project": args.wandb_project,
+                "name": args.wandb_name,
+                "config": vars(args),
+            }
+
+            if wandb_dir:
+                os.makedirs(wandb_dir, exist_ok=True)
+                os.environ["WANDB_DIR"] = wandb_dir
+                init_kwargs["dir"] = wandb_dir
+
+            if offline:
+                os.environ["WANDB_MODE"] = "offline"
+                init_kwargs["mode"] = "offline"
+            else:
+                wandb.login(key=args.wandb_key)
+
+            wandb.init(**init_kwargs)
             self.is_initialized = True
 
     def log(self, log_dict: Dict[str, Any], step: Optional[int] = None):

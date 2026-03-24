@@ -11,6 +11,8 @@ class TrackerArgs:
     wandb_project: str = None
     wandb_name: str = None
     wandb_key: str = None
+    wandb_offline: bool = False
+    wandb_dir: str = "/mnt/shared-storage-user/leihaodi/imo/SpecForge/wandb"
     swanlab_project: str = None
     swanlab_name: str = None
     swanlab_key: str = None
@@ -33,6 +35,17 @@ class TrackerArgs:
         parser.add_argument("--wandb-project", type=str, default=None)
         parser.add_argument("--wandb-name", type=str, default=None)
         parser.add_argument("--wandb-key", type=str, default=None, help="W&B API key.")
+        parser.add_argument(
+            "--wandb-offline",
+            action="store_true",
+            help="Enable W&B offline mode (store logs locally only).",
+        )
+        parser.add_argument(
+            "--wandb-dir",
+            type=str,
+            default="/mnt/shared-storage-user/leihaodi/imo/SpecForge/wandb",
+            help="Directory to store W&B local files.",
+        )
         # swanlab-specific args
         parser.add_argument(
             "--swanlab-project",

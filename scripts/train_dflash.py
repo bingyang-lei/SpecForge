@@ -3,6 +3,7 @@
 """DFlash Training Script."""
 
 import argparse
+import json
 import logging
 import math
 import os
@@ -20,7 +21,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoConfig, AutoTokenizer
 
-from datasets import load_dataset
+from datasets import concatenate_datasets, load_dataset
 from specforge.args import SGLangBackendArgs, TrackerArgs
 from specforge.core.dflash import OnlineDFlashModel
 from specforge.data import build_eagle3_dataset, prepare_dp_dataloaders
@@ -82,7 +83,14 @@ def parse_args():
     )
 
     dataset_group = parser.add_argument_group("dataset")
-    dataset_group.add_argument("--train-data-path", type=str, required=True)
+    dataset_group.add_argument(
+        "--train-data-path",
+        type=str,
+        nargs="+",
+        required=True,
+        help="Training data path(s). Supports one or multiple json/jsonl files, "
+        'or a single JSON list string (e.g. \'["a.jsonl","b.jsonl"]\').',
+    )
     dataset_group.add_argument("--eval-data-path", type=str, default=None)
     dataset_group.add_argument("--chat-template", type=str, default="qwen")
     dataset_group.add_argument("--is-preformatted", action="store_true")
@@ -190,19 +198,63 @@ def build_models(args) -> Tuple[DFlashTargetModel, DFlashDraftModel]:
     return target_model, draft_model
 
 
+def _normalize_data_paths(data_paths_arg, arg_name: str) -> list[str]:
+    """Normalize data path arg into a non-empty list of file paths."""
+    if isinstance(data_paths_arg, str):
+        paths = [data_paths_arg]
+    else:
+        paths = list(data_paths_arg)
+
+    # Backward-compatible: allow JSON list string passed as a single CLI argument.
+    if len(paths) == 1:
+        maybe_json_list = paths[0].strip()
+        if maybe_json_list.startswith("[") and maybe_json_list.endswith("]"):
+            try:
+                parsed = json.loads(maybe_json_list)
+            except json.JSONDecodeError as e:
+                raise ValueError(
+                    f"Invalid JSON list for --{arg_name}: {maybe_json_list}"
+                ) from e
+            if not isinstance(parsed, list) or not all(
+                isinstance(item, str) for item in parsed
+            ):
+                raise ValueError(
+                    f"--{arg_name} JSON list must be list[str], got: {parsed}"
+                )
+            paths = parsed
+
+    paths = [p for p in paths if isinstance(p, str) and p.strip()]
+    if not paths:
+        raise ValueError(f"--{arg_name} must contain at least one valid path")
+    return paths
+
+
 def build_dataloader(args, tokenizer) -> Tuple[DataLoader, Optional[DataLoader]]:
     """Build train and eval dataloaders."""
     import hashlib
 
+    train_data_paths = _normalize_data_paths(args.train_data_path, "train-data-path")
     cache_params_string = (
-        f"{args.train_data_path}-"
+        f"{'|'.join(train_data_paths)}-"
         f"{args.max_length}-"
         f"{args.chat_template}-"
         f"{args.target_model_path}"
     )
     cache_key = hashlib.md5(cache_params_string.encode()).hexdigest()
 
-    train_dataset = load_dataset("json", data_files=args.train_data_path)["train"]
+    if len(train_data_paths) == 1:
+        train_dataset = load_dataset("json", data_files=train_data_paths[0])["train"]
+    else:
+        train_datasets = [
+            load_dataset("json", data_files=data_path)["train"]
+            for data_path in train_data_paths
+        ]
+        train_dataset = concatenate_datasets(train_datasets)
+        print_on_rank0(
+            f"Merged {len(train_data_paths)} train datasets into "
+            f"{len(train_dataset)} samples"
+        )
+
     train_eagle3_dataset = build_eagle3_dataset(
         dataset=train_dataset,
         tokenizer=tokenizer,
@@ -344,6 +396,7 @@ def main():
     target_model, draft_model = build_models(args)
 
     draft_model_last_checkpoint = None
+    ckpt_info = (0, 0)
     if args.ckpt_dir is not None:
         if os.path.isdir(args.ckpt_dir):
             draft_model_last_checkpoint = args.ckpt_dir
@@ -354,10 +407,16 @@ def main():
             )
 
     if args.resume and os.path.isdir(args.output_dir):
-        draft_model_last_checkpoint, ckpt_info = get_last_checkpoint(
-            args.output_dir, prefix=r"epoch_\d+_step"
-        )
-        print_on_rank0(f"Last checkpoint detected: {draft_model_last_checkpoint}")
+        last_checkpoint_result = get_last_checkpoint(args.output_dir, prefix="epoch")
+        draft_model_last_checkpoint = last_checkpoint_result[0]
+        if len(last_checkpoint_result) > 1 and last_checkpoint_result[1] is not None:
+            ckpt_info = last_checkpoint_result[1]
+        if draft_model_last_checkpoint is not None:
+            print_on_rank0(f"Last checkpoint detected: {draft_model_last_checkpoint}")
+        else:
+            print_on_rank0(
+                "No existing checkpoint found under output-dir, start from scratch."
+            )
 
     resume_state = None
     if draft_model_last_checkpoint:
