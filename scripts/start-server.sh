@@ -43,4 +43,8 @@ for i in $(seq 0 "${last_gpu}"); do
 done
 
 echo "All ${gpu_num} server(s) started in background. Check PIDs with: jobs -l"
+<<<<<<< HEAD
 wait
+=======
+wait
+>>>>>>> a130d7b (temp: collect dflash local changes)

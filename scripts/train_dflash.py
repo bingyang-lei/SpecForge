@@ -37,6 +37,82 @@ from specforge.tracker import create_tracker
 from specforge.utils import get_last_checkpoint, print_on_rank0, print_with_rank
 
 
+def _parse_jsonl_paths(path_arg: str) -> list[str]:
+    """Parse a single jsonl path or a JSON-encoded path list."""
+    path_arg = path_arg.strip()
+    if path_arg.startswith("["):
+        try:
+            parsed = json.loads(path_arg)
+        except json.JSONDecodeError as err:
+            raise ValueError(
+                f"Invalid JSON list for --train-data-path: {path_arg}"
+            ) from err
+        if not isinstance(parsed, list) or len(parsed) == 0:
+            raise ValueError("--train-data-path list must be a non-empty JSON array.")
+        if not all(isinstance(p, str) and p.strip() for p in parsed):
+            raise ValueError(
+                "--train-data-path list must contain non-empty string file paths."
+            )
+        return [p.strip() for p in parsed]
+
+    return [path_arg]
+
+
+def _prepare_train_data_file(train_data_path_arg: str, cache_dir: str) -> str:
+    """
+    Return the train data file path.
+
+    If multiple jsonl paths are provided as a JSON list, merge them into a single
+    cached jsonl file before training.
+    """
+    import hashlib
+
+    train_paths = _parse_jsonl_paths(train_data_path_arg)
+    for path in train_paths:
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"Train data file not found: {path}")
+
+    if len(train_paths) == 1:
+        return train_paths[0]
+
+    file_signatures = []
+    for path in train_paths:
+        stat = os.stat(path)
+        file_signatures.append(f"{os.path.abspath(path)}:{stat.st_size}:{stat.st_mtime_ns}")
+    merged_key = hashlib.md5("|".join(file_signatures).encode()).hexdigest()
+    merged_dir = os.path.join(cache_dir, "merged_jsonl")
+    merged_path = os.path.join(merged_dir, f"train_merged_{merged_key}.jsonl")
+
+    is_dist = dist.is_available() and dist.is_initialized()
+    rank = dist.get_rank() if is_dist else 0
+
+    if rank == 0:
+        os.makedirs(merged_dir, exist_ok=True)
+        if not os.path.exists(merged_path):
+            print_on_rank0(
+                f"Merging {len(train_paths)} train jsonl files into: {merged_path}"
+            )
+            with open(merged_path, "w", encoding="utf-8") as fout:
+                for src in train_paths:
+                    last_line = None
+                    with open(src, "r", encoding="utf-8") as fin:
+                        for line in fin:
+                            fout.write(line)
+                            last_line = line
+                    if last_line is not None and not last_line.endswith("\n"):
+                        fout.write("\n")
+        else:
+            print_on_rank0(f"Reusing merged train jsonl file: {merged_path}")
+
+    if is_dist:
+        dist.barrier()
+
+    if not os.path.isfile(merged_path):
+        raise RuntimeError(f"Failed to create merged train data file: {merged_path}")
+
+    return merged_path
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Train DFlash Draft Model")
 
@@ -86,10 +162,16 @@ def parse_args():
     dataset_group.add_argument(
         "--train-data-path",
         type=str,
+<<<<<<< HEAD
         nargs="+",
         required=True,
         help="Training data path(s). Supports one or multiple json/jsonl files, "
         'or a single JSON list string (e.g. \'["a.jsonl","b.jsonl"]\').',
+=======
+        required=True,
+        help="Single jsonl path, or a JSON-encoded list of jsonl paths. "
+        "When a list is provided, files are merged before training.",
+>>>>>>> a130d7b (temp: collect dflash local changes)
     )
     dataset_group.add_argument("--eval-data-path", type=str, default=None)
     dataset_group.add_argument("--chat-template", type=str, default="qwen")
@@ -233,15 +315,24 @@ def build_dataloader(args, tokenizer) -> Tuple[DataLoader, Optional[DataLoader]]
     """Build train and eval dataloaders."""
     import hashlib
 
+<<<<<<< HEAD
     train_data_paths = _normalize_data_paths(args.train_data_path, "train-data-path")
     cache_params_string = (
         f"{'|'.join(train_data_paths)}-"
+=======
+    train_data_file = _prepare_train_data_file(args.train_data_path, args.cache_dir)
+    print_on_rank0(f"Using train data file: {train_data_file}")
+
+    cache_params_string = (
+        f"{train_data_file}-"
+>>>>>>> a130d7b (temp: collect dflash local changes)
         f"{args.max_length}-"
         f"{args.chat_template}-"
         f"{args.target_model_path}"
     )
     cache_key = hashlib.md5(cache_params_string.encode()).hexdigest()
 
+<<<<<<< HEAD
     if len(train_data_paths) == 1:
         train_dataset = load_dataset("json", data_files=train_data_paths[0])["train"]
     else:
@@ -255,6 +346,9 @@ def build_dataloader(args, tokenizer) -> Tuple[DataLoader, Optional[DataLoader]]
             f"{len(train_dataset)} samples"
         )
 
+=======
+    train_dataset = load_dataset("json", data_files=train_data_file)["train"]
+>>>>>>> a130d7b (temp: collect dflash local changes)
     train_eagle3_dataset = build_eagle3_dataset(
         dataset=train_dataset,
         tokenizer=tokenizer,
