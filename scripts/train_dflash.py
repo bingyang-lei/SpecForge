@@ -315,24 +315,15 @@ def build_dataloader(args, tokenizer) -> Tuple[DataLoader, Optional[DataLoader]]
     """Build train and eval dataloaders."""
     import hashlib
 
-<<<<<<< HEAD
     train_data_paths = _normalize_data_paths(args.train_data_path, "train-data-path")
     cache_params_string = (
         f"{'|'.join(train_data_paths)}-"
-=======
-    train_data_file = _prepare_train_data_file(args.train_data_path, args.cache_dir)
-    print_on_rank0(f"Using train data file: {train_data_file}")
-
-    cache_params_string = (
-        f"{train_data_file}-"
->>>>>>> a130d7b (temp: collect dflash local changes)
         f"{args.max_length}-"
         f"{args.chat_template}-"
         f"{args.target_model_path}"
     )
     cache_key = hashlib.md5(cache_params_string.encode()).hexdigest()
 
-<<<<<<< HEAD
     if len(train_data_paths) == 1:
         train_dataset = load_dataset("json", data_files=train_data_paths[0])["train"]
     else:
@@ -346,9 +337,6 @@ def build_dataloader(args, tokenizer) -> Tuple[DataLoader, Optional[DataLoader]]
             f"{len(train_dataset)} samples"
         )
 
-=======
-    train_dataset = load_dataset("json", data_files=train_data_file)["train"]
->>>>>>> a130d7b (temp: collect dflash local changes)
     train_eagle3_dataset = build_eagle3_dataset(
         dataset=train_dataset,
         tokenizer=tokenizer,
