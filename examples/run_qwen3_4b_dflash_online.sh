@@ -31,7 +31,7 @@ torchrun \
     --train-data-path "$TRAIN_DATA_PATH" \
     --output-dir $ROOT_DIR/outputs/qwen3-4b-dflash_data-instruct \
     --num-epochs 10 \
-    --batch-size 8 \
+    --batch-size 4 \
     --learning-rate 6e-4 \
     --warmup-ratio 0.04 \
     --max-grad-norm 1.0 \
