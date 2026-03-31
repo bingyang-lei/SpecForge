@@ -57,6 +57,11 @@ def parse_arguments():
         action="store_true",
         help="Whether the model is a GPT-OSS model",
     )
+    model_group.add_argument(
+        "--no-think",
+        action="store_true",
+        help="Do not generate <think> content in assistant response",
+    )
 
     # sampling params
     sampling_params_group = parser.add_argument_group("sampling parameters")
@@ -181,6 +186,8 @@ def build_query_kwargs(args, messages, max_tokens=None):
     extra_body = {}
     if args.top_k is not None:
         extra_body["top_k"] = args.top_k
+    if args.no_think:
+        extra_body["chat_template_kwargs"] = {"enable_thinking": False}
     if extra_body:
         query_kwargs["extra_body"] = extra_body
     if args.is_gpt_oss:
@@ -255,6 +262,7 @@ def main():
     print(f"  Max tokens: {args.max_tokens}")
     print(f"  Concurrency: {args.concurrency}")
     print(f"  Temperature: {args.temperature}")
+    print(f"  No think mode: {args.no_think}")
     print(f"  API URL: {args.server_address}")
     print(f"  Input file: {args.input_file_path}")
     print(f"  Output file: {args.output_file_path}")

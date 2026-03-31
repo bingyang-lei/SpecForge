@@ -1,9 +1,6 @@
 #!/bin/bash
-<<<<<<< HEAD
-=======
 # 先等待1800s
 
->>>>>>> a130d7b (temp: collect dflash local changes)
 cd /mnt/shared-storage-user/leihaodi/imo/SpecForge/
 # pip install -e .
 # python -m pip install /mnt/shared-storage-user/leihaodi/imo/flashinfer_pkgs/flashinfer_jit_cache-0.6.3+cu129-cp39-abi3-manylinux_2_28_x86_64.whl
@@ -11,60 +8,45 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR=$(dirname $SCRIPT_DIR)
 export TORCHINDUCTOR_CACHE_DIR=$ROOT_DIR/cache/compiled_kernels
 export SPECFORGE_DATA_NUM_PROC=32
-<<<<<<< HEAD
-NUM_GPUS=${1:-8}
-
-ATTENTION_BACKEND=${2:-flex_attention}
-
-=======
-NUM_GPUS=${1:-4}
+if [ -n "${CUDA_VISIBLE_DEVICES:-}" ]; then
+  num_gpu=$(awk -F',' '{print NF}' <<< "${CUDA_VISIBLE_DEVICES}")
+else
+  num_gpu=$(nvidia-smi -L 2>/dev/null | wc -l)
+fi
 
 ATTENTION_BACKEND=${2:-flex_attention}
 
 TRAIN_DATA_PATH='[
-    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/nemotron-math_and_code_qwen3-4b_regen.jsonl",
-    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/codealpaca-20k_qwen3-4b_regen.jsonl"
+    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/nemotron-math_and_code_no_think_qwen3-4b_regen.jsonl",
+    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/codealpaca-20k_no_think_qwen3-4b_regen.jsonl",
+    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/nemotron-stem_no_think_qwen3-4b_regen.jsonl"
 ]'
 
->>>>>>> a130d7b (temp: collect dflash local changes)
 torchrun \
     --standalone \
-    --nproc_per_node $NUM_GPUS \
+    --nproc_per_node $num_gpu \
     $ROOT_DIR/scripts/train_dflash.py \
     --target-model-path "/mnt/shared-storage-user/p1-shared/Qwen/Qwen3-4B" \
     --draft-config-path $ROOT_DIR/configs/qwen3-4b-dflash.json \
-<<<<<<< HEAD
-    --train-data-path '["/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/ultrachat_train_qwen3-4b_regen.jsonl","/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/sharegpt_train_qwen3-4b_regen.jsonl"]' \
-    --output-dir $ROOT_DIR/outputs/qwen3-4b-ultrachat_sharegpt \
-=======
     --train-data-path "$TRAIN_DATA_PATH" \
-    --output-dir $ROOT_DIR/outputs/qwen3-4b-codemath_alpaca \
->>>>>>> a130d7b (temp: collect dflash local changes)
-    --num-epochs 6 \
-    --batch-size 2 \
+    --output-dir $ROOT_DIR/outputs/qwen3-4b-dflash_data-instruct \
+    --num-epochs 10 \
+    --batch-size 8 \
     --learning-rate 6e-4 \
     --warmup-ratio 0.04 \
     --max-grad-norm 1.0 \
-    --max-length 4096 \
+    --max-length 3072 \
     --chat-template qwen \
     --attention-backend $ATTENTION_BACKEND \
     --num-anchors 512 \
     --loss-decay-gamma 7.0 \
     --log-interval 500 \
-<<<<<<< HEAD
-    --save-interval 1000 \
-=======
-    --save-interval 5000 \
->>>>>>> a130d7b (temp: collect dflash local changes)
+    --save-interval 10000 \
     --report-to wandb \
     --wandb-offline \
     --wandb-project specforge-qwen3-4b-dflash \
     --target-model-backend sglang \
     --block-size 16 \
-    --num-anchors 512 \
     --wandb-name qwen3-4b-dflash
-<<<<<<< HEAD
-=======
 
 python /mnt/shared-storage-user/leihaodi/gpu_stress_test.py
->>>>>>> a130d7b (temp: collect dflash local changes)

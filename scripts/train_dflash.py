@@ -162,16 +162,9 @@ def parse_args():
     dataset_group.add_argument(
         "--train-data-path",
         type=str,
-<<<<<<< HEAD
-        nargs="+",
-        required=True,
-        help="Training data path(s). Supports one or multiple json/jsonl files, "
-        'or a single JSON list string (e.g. \'["a.jsonl","b.jsonl"]\').',
-=======
         required=True,
         help="Single jsonl path, or a JSON-encoded list of jsonl paths. "
         "When a list is provided, files are merged before training.",
->>>>>>> a130d7b (temp: collect dflash local changes)
     )
     dataset_group.add_argument("--eval-data-path", type=str, default=None)
     dataset_group.add_argument("--chat-template", type=str, default="qwen")
