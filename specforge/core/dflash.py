@@ -106,6 +106,8 @@ class OnlineDFlashModel(nn.Module):
         attention_backend: str = "flex_attention",
         num_anchors: int = 512,
         loss_decay_gamma: Optional[float] = None,
+        use_kl_loss: bool = False,
+        kl_alpha: float = 0.7,
     ):
         super().__init__()
         self.draft_model = draft_model
@@ -116,6 +118,8 @@ class OnlineDFlashModel(nn.Module):
         self.attention_backend = attention_backend
         self.num_anchors = num_anchors
         self.loss_decay_gamma = loss_decay_gamma
+        self.use_kl_loss = use_kl_loss
+        self.kl_alpha = kl_alpha
 
         self._cached_block_mask: Optional[BlockMask] = None
         self._cached_seq_len: Optional[int] = None
@@ -216,7 +220,10 @@ class OnlineDFlashModel(nn.Module):
         input_ids: torch.Tensor,
         hidden_states: torch.Tensor,
         loss_mask: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        teacher_hidden_states: Optional[torch.Tensor] = None,
+    ) -> Tuple[
+        torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]
+    ]:
         """Parallel block-wise training forward pass."""
         bsz, seq_len = input_ids.shape
         device = input_ids.device
@@ -304,9 +311,53 @@ class OnlineDFlashModel(nn.Module):
         flat_targets = target_ids.view(-1)
         flat_weights = weight_mask.view(-1)
 
+        # Hard CE Loss (original)
         loss_per_token = F.cross_entropy(flat_logits, flat_targets, reduction="none")
         valid_token_count = flat_weights.sum() + 1e-6
-        loss = (loss_per_token * flat_weights).sum() / valid_token_count
+        hard_ce_loss = (loss_per_token * flat_weights).sum() / valid_token_count
+
+        weighted_kl_component = None
+        weighted_ce_component = None
+        can_use_kl = (
+            self.use_kl_loss
+            and self.kl_alpha > 0.0
+            and teacher_hidden_states is not None
+            and teacher_hidden_states.size(-1) == self.lm_head.in_features
+        )
+        if can_use_kl:
+            teacher_hidden = teacher_hidden_states
+            assert teacher_hidden is not None
+            with torch.no_grad():
+                teacher_hidden_gathered = torch.gather(
+                    teacher_hidden.unsqueeze(1).expand(
+                        -1, anchor_positions.size(1), -1, -1
+                    ),
+                    2,
+                    safe_label_indices.unsqueeze(-1).expand(
+                        -1, -1, -1, teacher_hidden.size(-1)
+                    ),
+                )
+                teacher_logits = self.lm_head(teacher_hidden_gathered)
+                flat_teacher_logits = teacher_logits.view(-1, teacher_logits.size(-1))
+
+            temperature = 2.0
+            draft_log_probs = F.log_softmax(flat_logits / temperature, dim=-1)
+            teacher_probs = F.softmax(flat_teacher_logits / temperature, dim=-1)
+            kl_per_token = (
+                F.kl_div(
+                    draft_log_probs,
+                    teacher_probs,
+                    reduction="none",
+                    log_target=False,
+                ).sum(dim=-1)
+                * (temperature**2)
+            )
+            kl_loss = (kl_per_token * flat_weights).sum() / valid_token_count
+            weighted_kl_component = self.kl_alpha * kl_loss
+            weighted_ce_component = (1.0 - self.kl_alpha) * hard_ce_loss
+            loss = weighted_kl_component + weighted_ce_component
+        else:
+            loss = hard_ce_loss
 
         # --- Accuracy ---
         with torch.no_grad():
@@ -315,4 +366,4 @@ class OnlineDFlashModel(nn.Module):
             actual_token_count = binary_eval_mask.sum() + 1e-6
             accuracy = correct.sum().float() / actual_token_count
 
-        return loss, accuracy
+        return loss, accuracy, weighted_kl_component, weighted_ce_component

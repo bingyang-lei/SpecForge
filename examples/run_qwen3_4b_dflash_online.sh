@@ -15,6 +15,23 @@ else
 fi
 
 ATTENTION_BACKEND=${2:-flex_attention}
+USE_KL=false
+KL_ALPHA=0.7
+IGNORE_GRAD_NORM=false
+
+KL_ARGS=""
+WANDB_SUFFIX=""
+GRAD_NORM_ARGS=""
+if [ "$USE_KL" = true ]; then
+  KL_ARGS="--use-kl --kl-alpha $KL_ALPHA"
+  WANDB_SUFFIX="_kl${KL_ALPHA}"
+fi
+if [ "$IGNORE_GRAD_NORM" = true ]; then
+  GRAD_NORM_ARGS="--ignore-grad-norm"
+fi
+
+echo "KL_ARGS: $KL_ARGS"
+sleep 3
 
 TRAIN_DATA_PATH='[
     "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/nemotron-math_and_code_no_think_qwen3-4b_regen.jsonl",
@@ -29,7 +46,7 @@ torchrun \
     --target-model-path "/mnt/shared-storage-user/p1-shared/Qwen/Qwen3-4B" \
     --draft-config-path $ROOT_DIR/configs/qwen3-4b-dflash.json \
     --train-data-path "$TRAIN_DATA_PATH" \
-    --output-dir $ROOT_DIR/outputs/qwen3-4b-dflash_data-instruct \
+    --output-dir $ROOT_DIR/outputs/qwen3-4b-dflash_data-instruct-exp \
     --num-epochs 10 \
     --batch-size 4 \
     --learning-rate 6e-4 \
@@ -42,11 +59,16 @@ torchrun \
     --loss-decay-gamma 7.0 \
     --log-interval 500 \
     --save-interval 10000 \
-    --report-to wandb \
+    --report-to none \
     --wandb-offline \
     --wandb-project specforge-qwen3-4b-dflash \
     --target-model-backend sglang \
     --block-size 16 \
-    --wandb-name qwen3-4b-dflash
+    --wandb-name qwen3-4b-dflash${WANDB_SUFFIX} \
+    $KL_ARGS \
+    $GRAD_NORM_ARGS
 
 python /mnt/shared-storage-user/leihaodi/gpu_stress_test.py
+
+# bash /mnt/shared-storage-user/leihaodi/imo/SpecForge/examples/run_qwen3_4b_dflash_online.sh flex_attention
+# --report-to wandb # none

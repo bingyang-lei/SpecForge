@@ -158,6 +158,22 @@ def parse_args():
         "Suggested: 7 for block_size=16, 5 for 10, 4 for 8. None disables.",
     )
     model_group.add_argument(
+        "--use-kl",
+        action="store_true",
+        help="Whether to use KL divergence (logit distillation) in addition to hard CE.",
+    )
+    model_group.add_argument(
+        "--kl-alpha",
+        type=float,
+        default=0.7,
+        help="Weight for KL loss in mixed loss: alpha*KL + (1-alpha)*HardCE. Default 0.7.",
+    )
+    model_group.add_argument(
+        "--ignore-grad-norm",
+        action="store_true",
+        help="If set, do not log gradient norm to tracker/wandb.",
+    )
+    model_group.add_argument(
         "--embedding-key",
         type=str,
         default=None,
@@ -450,6 +466,7 @@ def record_metrics(
     optimizer,
     train_dataloader=None,
     mode: str = "train",
+    extra_metrics: Optional[dict[str, float]] = None,
 ) -> None:
     logdict = {}
 
@@ -458,6 +475,8 @@ def record_metrics(
 
     logdict[f"{mode}/loss"] = loss
     logdict[f"{mode}/accuracy"] = accuracy
+    if extra_metrics:
+        logdict.update(extra_metrics)
 
     print_on_rank0(
         f"{mode.capitalize()} - Step {global_step} [{global_step}/{args.num_epochs * len(train_dataloader) // args.accumulation_steps}?], Loss: {loss:.4f}, Acc: {accuracy:.4f}"
@@ -563,6 +582,8 @@ def main():
         attention_backend=args.attention_backend,
         num_anchors=args.num_anchors,
         loss_decay_gamma=args.loss_decay_gamma,
+        use_kl_loss=args.use_kl,
+        kl_alpha=args.kl_alpha,
     )
 
     dflash_model = FSDP(
@@ -610,6 +631,7 @@ def main():
     for epoch in range(start_epoch, args.num_epochs):
         train_dataloader.sampler.set_epoch(epoch)
         draft_model.train()
+        last_grad_norm = None
 
         if dist.get_rank() == 0:
             progress_bar = tqdm(
@@ -630,17 +652,31 @@ def main():
                 input_ids, attention_mask, loss_mask
             )
             hidden_states = target_output.hidden_states.cuda()  # Ensure on GPU
+            teacher_hidden_states = (
+                target_output.teacher_hidden_states.cuda()
+                if target_output.teacher_hidden_states is not None
+                else None
+            )
 
-            loss, accuracy = dflash_model(
+            loss, accuracy, weighted_kl_component, weighted_ce_component = dflash_model(
                 input_ids=input_ids,
                 hidden_states=hidden_states,
                 loss_mask=loss_mask,
+                teacher_hidden_states=teacher_hidden_states,
             )
 
             (loss / args.accumulation_steps).backward()
 
             if global_step % args.accumulation_steps == 0:
                 optimizer.step()
+                # if not args.ignore_grad_norm:
+                #     last_grad_norm = (
+                #         grad_norm.detach()
+                #         if isinstance(grad_norm, torch.Tensor)
+                #         else torch.tensor(float(grad_norm), device=loss.device)
+                #     )
+                # else:
+                last_grad_norm = None
 
             if global_step % args.log_interval == 0:
                 loss_log = loss.clone()
@@ -649,6 +685,22 @@ def main():
                 dist.all_reduce(acc_log)
                 loss_log = loss_log / dist.get_world_size()
                 acc_log = acc_log / dist.get_world_size()
+                extra_metrics = {}
+                if last_grad_norm is not None:
+                    grad_norm_log = last_grad_norm.clone().to(loss.device)
+                    dist.all_reduce(grad_norm_log)
+                    grad_norm_log = grad_norm_log / dist.get_world_size()
+                    extra_metrics["train/grad_norm"] = grad_norm_log.item()
+                if args.use_kl and weighted_kl_component is not None:
+                    weighted_kl_log = weighted_kl_component.clone()
+                    dist.all_reduce(weighted_kl_log)
+                    weighted_kl_log = weighted_kl_log / dist.get_world_size()
+                    extra_metrics["train/weighted_kl_loss"] = weighted_kl_log.item()
+                if args.use_kl and weighted_ce_component is not None:
+                    weighted_ce_log = weighted_ce_component.clone()
+                    dist.all_reduce(weighted_ce_log)
+                    weighted_ce_log = weighted_ce_log / dist.get_world_size()
+                    extra_metrics["train/weighted_hard_ce_loss"] = weighted_ce_log.item()
 
                 record_metrics(
                     args,
@@ -659,6 +711,7 @@ def main():
                     optimizer,
                     train_dataloader,
                     mode="train",
+                    extra_metrics=extra_metrics,
                 )
 
             if dist.get_rank() == 0:

@@ -19,7 +19,7 @@ from transformers import AutoModelForCausalLM
 
 from specforge.distributed import get_tp_group
 
-from .sglang_backend import SGLangRunner
+from .sglang_backend import SGLangRunner, wrap_eagle3_logits_processors_in_module
 
 
 @dataclass
@@ -28,6 +28,7 @@ class DFlashTargetOutput:
     input_ids: torch.Tensor  # [batch, seq_len]
     attention_mask: torch.Tensor  # [batch, seq_len]
     loss_mask: torch.Tensor  # [batch, seq_len]
+    teacher_hidden_states: Optional[torch.Tensor] = None  # [batch, seq_len, hidden_size]
 
 
 class DFlashTargetModel(ABC):
@@ -108,13 +109,19 @@ class SGLangDFlashTargetModel(DFlashTargetModel):
             server_args=server_args,
             nccl_port=None,
         )
+        # Reuse the EAGLE3 logits-processor wrapper to return both:
+        # - aux_hidden_states: concatenated captured layers for DFlash input
+        # - last_hidden_states: final hidden state for KL teacher logits
+        wrap_eagle3_logits_processors_in_module(
+            model_runner.model, return_full_logits=True
+        )
         return cls(model_runner)
 
     def set_capture_layers(self, layer_ids: List[int]) -> None:
         super().set_capture_layers(layer_ids)
         if hasattr(self.model_runner.model, "set_eagle3_layers_to_capture"):
             self.model_runner.model.set_eagle3_layers_to_capture(layer_ids)
-            print(self.model_runner.model.model.layers_to_capture)
+            print("In line 118, dflash_target_model.py: set capture layers are: ", self.model_runner.model.model.layers_to_capture)
 
     @torch.no_grad
     def _extend(self, reqs):
@@ -163,22 +170,42 @@ class SGLangDFlashTargetModel(DFlashTargetModel):
             output = output.logits_output
 
         input_lens = [len(req.origin_input_ids) for req in reqs]
-        if (
-            hasattr(output, "aux_hidden_states")
+        dflash_hidden = (
+            output.aux_hidden_states
+            if hasattr(output, "aux_hidden_states")
             and output.aux_hidden_states is not None
-        ):
-            hidden_states_list = torch.split(
-                output.aux_hidden_states, input_lens, dim=0
-            )
-        elif hasattr(output, "hidden_states") and output.hidden_states is not None:
-            hidden_states_list = torch.split(output.hidden_states, input_lens, dim=0)
-        else:
+            else None
+        )
+        if dflash_hidden is None and hasattr(output, "hidden_states"):
+            # Fallback for unwrapped/older output object.
+            dflash_hidden = output.hidden_states
+            
+        if dflash_hidden is None:
             raise ValueError("SGLang output does not contain hidden states.")
+
+        # print(f"dflash_hidden shape: {dflash_hidden.shape}")
+        hidden_states_list = torch.split(dflash_hidden, input_lens, dim=0)
+
+        teacher_hidden = (
+            output.last_hidden_states
+            if hasattr(output, "last_hidden_states")
+            and output.last_hidden_states is not None
+            else None
+        )
+        if teacher_hidden is None:
+            raise ValueError("SGLang output does not contain teacher hidden states.")
+
+        # print(f"teacher_hidden shape: {teacher_hidden.shape}")
+        teacher_hidden_states_list = (
+            torch.split(teacher_hidden, input_lens, dim=0)
+            if teacher_hidden is not None
+            else None
+        )
 
         self.model_runner.req_to_token_pool.clear()
         self.model_runner.token_to_kv_pool_allocator.clear()
 
-        return hidden_states_list
+        return hidden_states_list, teacher_hidden_states_list
 
     @torch.no_grad()
     def generate_dflash_data(
@@ -209,20 +236,152 @@ class SGLangDFlashTargetModel(DFlashTargetModel):
             data_cache.append((curr_ids, curr_attn, curr_loss))
             reqs.append(req)
 
-        hidden_states_list = self._extend(reqs)
+        hidden_states_list, teacher_hidden_states_list = self._extend(reqs)
 
         # Stack back to batch
         hidden_states = torch.cat([h.unsqueeze(0) for h in hidden_states_list], dim=0)
+        teacher_hidden_states = (
+            torch.cat([h.unsqueeze(0) for h in teacher_hidden_states_list], dim=0)
+            if teacher_hidden_states_list is not None
+            else None
+        )
         input_ids = torch.cat([d[0] for d in data_cache], dim=0)
         attention_mask = torch.cat([d[1] for d in data_cache], dim=0)
         loss_mask = torch.cat([d[2] for d in data_cache], dim=0)
 
         return DFlashTargetOutput(
             hidden_states=hidden_states,
+            teacher_hidden_states=teacher_hidden_states,
             input_ids=input_ids,
             attention_mask=attention_mask,
             loss_mask=loss_mask,
         )
+
+    # @torch.no_grad
+    # def _extend(self, reqs):
+    #     cache_params = CacheInitParams(
+    #         disable=False,
+    #         req_to_token_pool=self.model_runner.req_to_token_pool,
+    #         token_to_kv_pool_allocator=self.model_runner.token_to_kv_pool_allocator,
+    #         page_size=self.model_runner.server_args.page_size,
+    #     )
+    #     tree_cache = RadixCache(cache_params)
+
+    #     batch = ScheduleBatch.init_new(
+    #         reqs=reqs,
+    #         req_to_token_pool=self.model_runner.req_to_token_pool,
+    #         token_to_kv_pool_allocator=self.model_runner.token_to_kv_pool_allocator,
+    #         tree_cache=tree_cache,
+    #         model_config=self.model_runner.model_config,
+    #         enable_overlap=False,
+    #         spec_algorithm=SpeculativeAlgorithm.NONE,
+    #     )
+    #     batch.prepare_for_extend()
+
+    #     if require_mlp_sync(self.model_runner.server_args):
+    #         Scheduler.prepare_mlp_sync_batch_raw(
+    #             batch,
+    #             dp_size=self.model_runner.server_args.dp_size,
+    #             attn_tp_size=1,
+    #             tp_group=self.model_runner.tp_group,
+    #             get_idle_batch=None,
+    #             disable_cuda_graph=self.model_runner.server_args.disable_cuda_graph,
+    #             spec_algorithm=SpeculativeAlgorithm.NONE,
+    #             speculative_num_draft_tokens=None,
+    #             require_mlp_tp_gather=require_mlp_tp_gather(
+    #                 self.model_runner.server_args
+    #             ),
+    #             disable_overlap_schedule=self.model_runner.server_args.disable_overlap_schedule,
+    #             offload_tags=set(),
+    #         )
+
+    #     model_worker_batch = batch.get_model_worker_batch()
+    #     forward_batch = ForwardBatch.init_new(model_worker_batch, self.model_runner)
+    #     forward_batch.capture_hidden_mode = CaptureHiddenMode.FULL
+
+    #     output = self.model_runner.forward(forward_batch)
+    #     if hasattr(output, "logits_output"):
+    #         output = output.logits_output
+
+    #     input_lens = [len(req.origin_input_ids) for req in reqs]
+    #     dflash_hidden = (
+    #         output.aux_hidden_states
+    #         if hasattr(output, "aux_hidden_states")
+    #         and output.aux_hidden_states is not None
+    #         else None
+    #     )
+    #     teacher_hidden = (
+    #         output.hidden_states
+    #         if hasattr(output, "hidden_states") and output.hidden_states is not None
+    #         else None
+    #     )
+
+    #     if dflash_hidden is None and teacher_hidden is None:
+    #         raise ValueError("SGLang output does not contain hidden states.")
+
+    #     if dflash_hidden is None:
+    #         raise ValueError("SGLang output does not contain dflash hidden states.")
+    #     dflash_hidden_states_list = torch.split(dflash_hidden, input_lens, dim=0)
+    #     teacher_hidden_states_list = (
+    #         torch.split(teacher_hidden, input_lens, dim=0)
+    #         if teacher_hidden is not None
+    #         else None
+    #     )
+
+    #     self.model_runner.req_to_token_pool.clear()
+    #     self.model_runner.token_to_kv_pool_allocator.clear()
+
+    #     return dflash_hidden_states_list, teacher_hidden_states_list
+
+    # @torch.no_grad()
+    # def generate_dflash_data(
+    #     self,
+    #     input_ids: torch.Tensor,
+    #     attention_mask: torch.Tensor,
+    #     loss_mask: torch.Tensor,
+    # ) -> DFlashTargetOutput:
+    #     sampling_params = SamplingParams(temperature=0, max_new_tokens=1)
+    #     reqs, data_cache = [], []
+
+    #     if isinstance(input_ids, torch.Tensor):
+    #         input_ids_list = torch.split(input_ids, 1, dim=0)
+    #         attn_mask_list = torch.split(attention_mask, 1, dim=0)
+    #         loss_mask_list = torch.split(loss_mask, 1, dim=0)
+
+    #     for idx, (curr_ids, curr_attn, curr_loss) in enumerate(
+    #         zip(input_ids_list, attn_mask_list, loss_mask_list)
+    #     ):
+    #         req = Req(
+    #             rid=str(idx),
+    #             origin_input_text="",
+    #             origin_input_ids=curr_ids.view(-1).tolist(),
+    #             sampling_params=sampling_params,
+    #         )
+    #         req.fill_ids = req.origin_input_ids
+    #         req.extend_input_len = len(req.fill_ids) - len(req.prefix_indices)
+    #         data_cache.append((curr_ids, curr_attn, curr_loss))
+    #         reqs.append(req)
+
+    #     hidden_states_list, teacher_hidden_states_list = self._extend(reqs)
+
+    #     # Stack back to batch
+    #     hidden_states = torch.cat([h.unsqueeze(0) for h in hidden_states_list], dim=0)
+    #     teacher_hidden_states = (
+    #         torch.cat([h.unsqueeze(0) for h in teacher_hidden_states_list], dim=0)
+    #         if teacher_hidden_states_list is not None
+    #         else None
+    #     )
+    #     input_ids = torch.cat([d[0] for d in data_cache], dim=0)
+    #     attention_mask = torch.cat([d[1] for d in data_cache], dim=0)
+    #     loss_mask = torch.cat([d[2] for d in data_cache], dim=0)
+
+    #     return DFlashTargetOutput(
+    #         hidden_states=hidden_states,
+    #         teacher_hidden_states=teacher_hidden_states,
+    #         input_ids=input_ids,
+    #         attention_mask=attention_mask,
+    #         loss_mask=loss_mask,
+    #     )
 
 
 class HFDFlashTargetModel(DFlashTargetModel):
@@ -281,6 +440,7 @@ class HFDFlashTargetModel(DFlashTargetModel):
 
         return DFlashTargetOutput(
             hidden_states=hidden_states,
+            teacher_hidden_states=outputs.hidden_states[-1],
             input_ids=input_ids,
             attention_mask=attention_mask,
             loss_mask=loss_mask,
