@@ -114,7 +114,12 @@ def parse_arguments():
         "--input-file-path", type=str, required=True, help="Path to the input file"
     )
     data_group.add_argument(
-        "--output-file-path", type=str, required=True, help="Path to the output file"
+        "--output-file-path", type=str, default=None, help="Path to the output file"
+    )
+    data_group.add_argument(
+        "--entropy",
+        action="store_true",
+        help="Compute and report average sequence entropy instead of writing output",
     )
     data_group.add_argument(
         "--num-samples",
@@ -182,6 +187,8 @@ def build_query_kwargs(args, messages, max_tokens=None):
         temperature=args.temperature,
         stream=False,
     )
+    if getattr(args, "entropy", False):
+        query_kwargs["logprobs"] = True
     if args.top_p is not None:
         query_kwargs["top_p"] = args.top_p
     if args.repetition_penalty is not None:
@@ -209,8 +216,8 @@ def call_sglang(
 
     messages = data["conversations"]
     regenerated_messages = []
+    all_token_logprobs = []
 
-    # ignore data which starts with an assistant message
     if messages[0]["role"] == "assistant":
         data["status"] = "error"
         data["error"] = "Data starts with an assistant message"
@@ -233,6 +240,16 @@ def call_sglang(
                 data["error"] = str(e)
                 return data
             response_text = resp.choices[0].message.content
+
+            if (
+                getattr(args, "entropy", False)
+                and resp.choices[0].logprobs
+                and resp.choices[0].logprobs.content
+            ):
+                all_token_logprobs.extend(
+                    lp.logprob for lp in resp.choices[0].logprobs.content
+                )
+
             resp_msg = {
                 "role": "assistant",
                 "content": response_text,
@@ -248,12 +265,129 @@ def call_sglang(
             return data
     data["conversations"] = regenerated_messages
     data["status"] = "success"
+
+    if all_token_logprobs:
+        data["entropy"] = -sum(all_token_logprobs) / len(all_token_logprobs)
+        data["num_tokens"] = len(all_token_logprobs)
+
     return data
+
+
+def compute_entropy_mode(args):
+    """Compute and report average sequence entropy over the input dataset."""
+    print(f"Entropy mode enabled — will compute sequence entropy only.")
+    print(f"Configuration:")
+    print(f"  Model path: {args.model}")
+    print(f"  Max tokens: {args.max_tokens}")
+    print(f"  Concurrency: {args.concurrency}")
+    print(f"  Temperature: {args.temperature}")
+    print(f"  No think mode: {args.no_think}")
+    print(f"  API URL: {args.server_address}")
+    print(f"  Input file: {args.input_file_path}")
+    print("-" * 50)
+
+    total_lines = sum(1 for _ in open(args.input_file_path))
+
+    valid_server_addresses = []
+    for server_address in args.server_address:
+        dummy_data = dict(
+            conversations=[{"role": "user", "content": "Hello, how are you?"}]
+        )
+        result = call_sglang(args, server_address, dummy_data, max_tokens=1)
+        if result is not None:
+            valid_server_addresses.append(server_address)
+        else:
+            print(f"Server {server_address} is not available")
+
+    if len(valid_server_addresses) == 0:
+        raise ValueError("No server address is available")
+    print(
+        f"Using {len(valid_server_addresses)} server addresses: {valid_server_addresses}"
+    )
+    print("-" * 50)
+
+    per_sample_avg_losses = []
+    token_counts = []
+    success_samples = 0
+    error_samples = 0
+
+    def process_result(regen_data):
+        nonlocal success_samples, error_samples
+        if regen_data["status"] == "error":
+            error_samples += 1
+        else:
+            success_samples += 1
+            if "entropy" in regen_data:
+                per_sample_avg_losses.append(regen_data["entropy"])
+                token_counts.append(regen_data["num_tokens"])
+
+    with open(args.input_file_path, "r") as input_file:
+        executor = ThreadPoolExecutor(
+            max_workers=args.concurrency * len(valid_server_addresses)
+        )
+        waiting_queue = {sa: [] for sa in valid_server_addresses}
+        pbar = tqdm(total=total_lines, desc="Computing entropy")
+        start_server_index = 0
+
+        for line in input_file:
+            if (
+                args.num_samples is not None
+                and success_samples + error_samples >= args.num_samples
+            ):
+                break
+
+            data = json.loads(line.strip())
+            server_address = valid_server_addresses[start_server_index]
+            start_server_index = (start_server_index + 1) % len(valid_server_addresses)
+
+            while len(waiting_queue[server_address]) >= args.concurrency:
+                finished = False
+                for req_future in waiting_queue[server_address]:
+                    if req_future.done():
+                        process_result(req_future.result())
+                        waiting_queue[server_address].remove(req_future)
+                        finished = True
+                if finished:
+                    break
+
+            req_future = executor.submit(call_sglang, args, server_address, data)
+            waiting_queue[server_address].append(req_future)
+            pbar.update(1)
+
+        for sa, futures in waiting_queue.items():
+            for f in futures:
+                process_result(f.result())
+        pbar.close()
+
+    print(f"\nEntropy computation completed!")
+    print(f"  Successful samples: {success_samples}")
+    print(f"  Error samples: {error_samples}")
+    if per_sample_avg_losses:
+        total_tokens = sum(token_counts)
+        avg_tokens = total_tokens / len(token_counts)
+        avg_loss = sum(
+            loss * num_tokens
+            for loss, num_tokens in zip(per_sample_avg_losses, token_counts)
+        ) / total_tokens
+        print(f"  Samples with loss: {len(per_sample_avg_losses)}")
+        print(f"  Total generated tokens: {total_tokens}")
+        print(f"  Average tokens per sample: {avg_tokens:.1f}")
+        print(f"  Average token loss / cross-entropy (nats): {avg_loss:.6f}")
+        print(f"  Average token loss / cross-entropy (bits): {avg_loss / 0.693147:.6f}")
+    else:
+        print("  No valid entropy data collected.")
 
 
 def main():
     # Parse command line arguments
     args = parse_arguments()
+
+    if args.entropy:
+        compute_entropy_mode(args)
+        return
+
+    if not args.output_file_path:
+        raise ValueError("--output-file-path is required when --entropy is not set")
 
     # Validate parameters
     if not (0.0 <= args.temperature <= 1.0):

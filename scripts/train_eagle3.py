@@ -1,5 +1,6 @@
 import argparse
 import hashlib
+import json
 import math
 import os
 import time
@@ -17,7 +18,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoProcessor, AutoTokenizer
 
-from datasets import Dataset
+from datasets import Dataset, concatenate_datasets
 from specforge import (
     AutoDraftModelConfig,
     AutoEagle3DraftModel,
@@ -99,10 +100,20 @@ def parse_args() -> Tuple[ArgumentParser, Namespace]:
 
     # dataset arguments
     dataset_group = parser.add_argument_group("dataset")
-    dataset_group.add_argument("--train-data-path", type=str, required=True)
+    dataset_group.add_argument(
+        "--train-data-path",
+        type=str,
+        required=True,
+        help="Single jsonl path, or a JSON-encoded list of jsonl paths.",
+    )
     dataset_group.add_argument("--train-hidden-states-path", type=str, default=None)
     dataset_group.add_argument("--eval-hidden-states-path", type=str, default=None)
-    dataset_group.add_argument("--eval-data-path", type=str, default=None)
+    dataset_group.add_argument(
+        "--eval-data-path",
+        type=str,
+        default=None,
+        help="Single jsonl path, or a JSON-encoded list of jsonl paths.",
+    )
     dataset_group.add_argument("--chat-template", type=str, default="llama3")
     dataset_group.add_argument(
         "--is-preformatted",
@@ -249,6 +260,46 @@ def build_tracker(args: Namespace, parser: ArgumentParser) -> Tracker:
         parser.error(f"Unknown tracker: {args.report_to}")
     tracker = create_tracker(args, args.output_dir)
     return tracker
+
+
+def _normalize_data_paths(data_paths_arg, arg_name: str) -> list[str]:
+    """Normalize a CLI path arg into a non-empty list of file paths.
+
+    Supports:
+    - Single path string
+    - JSON list string (e.g. '["a.jsonl","b.jsonl"]')
+    """
+    if isinstance(data_paths_arg, str):
+        paths = [data_paths_arg]
+    else:
+        paths = list(data_paths_arg)
+
+    if len(paths) == 1:
+        maybe_json_list = paths[0].strip()
+        if maybe_json_list.startswith("[") and maybe_json_list.endswith("]"):
+            try:
+                parsed = json.loads(maybe_json_list)
+            except json.JSONDecodeError as e:
+                raise ValueError(
+                    f"Invalid JSON list for --{arg_name}: {maybe_json_list}"
+                ) from e
+            if not isinstance(parsed, list) or not all(
+                isinstance(item, str) for item in parsed
+            ):
+                raise ValueError(
+                    f"--{arg_name} JSON list must be list[str], got: {parsed}"
+                )
+            paths = parsed
+
+    paths = [p.strip() for p in paths if isinstance(p, str) and p.strip()]
+    if not paths:
+        raise ValueError(f"--{arg_name} must contain at least one valid path")
+
+    missing = [p for p in paths if not os.path.isfile(p)]
+    if missing:
+        raise FileNotFoundError(f"File(s) not found for --{arg_name}: {missing}")
+
+    return paths
 
 
 def build_target_model(
@@ -447,17 +498,32 @@ def build_dataloaders(
     )
 
     # convert to dataloader
+    train_data_paths = _normalize_data_paths(args.train_data_path, "train-data-path")
     cache_params_string = (
-        f"{args.train_data_path}-"
+        f"{'|'.join(train_data_paths)}-"
         f"{args.max_length}-"
         f"{args.chat_template}-"
         f"{args.target_model_path}"  # Tokenizer may also different
     )
     cache_key = hashlib.md5(cache_params_string.encode()).hexdigest()
-    train_dataset = Dataset.from_generator(
-        generator=safe_conversations_generator,
-        gen_kwargs={"file_path": args.train_data_path},
-    )
+    if len(train_data_paths) == 1:
+        train_dataset = Dataset.from_generator(
+            generator=safe_conversations_generator,
+            gen_kwargs={"file_path": train_data_paths[0]},
+        )
+    else:
+        train_datasets = [
+            Dataset.from_generator(
+                generator=safe_conversations_generator,
+                gen_kwargs={"file_path": data_path},
+            )
+            for data_path in train_data_paths
+        ]
+        train_dataset = concatenate_datasets(train_datasets)
+        print_on_rank0(
+            f"Merged {len(train_data_paths)} train datasets into "
+            f"{len(train_dataset)} samples"
+        )
     is_online = (
         args.train_data_path is not None and args.train_hidden_states_path is None
     )
@@ -505,10 +571,25 @@ def build_dataloaders(
     )
     if args.eval_data_path is not None or args.eval_hidden_states_path is not None:
         if args.eval_data_path is not None:
-            eval_dataset = Dataset.from_generator(
-                generator=safe_conversations_generator,
-                gen_kwargs={"file_path": args.eval_data_path},
-            )
+            eval_data_paths = _normalize_data_paths(args.eval_data_path, "eval-data-path")
+            if len(eval_data_paths) == 1:
+                eval_dataset = Dataset.from_generator(
+                    generator=safe_conversations_generator,
+                    gen_kwargs={"file_path": eval_data_paths[0]},
+                )
+            else:
+                eval_datasets = [
+                    Dataset.from_generator(
+                        generator=safe_conversations_generator,
+                        gen_kwargs={"file_path": data_path},
+                    )
+                    for data_path in eval_data_paths
+                ]
+                eval_dataset = concatenate_datasets(eval_datasets)
+                print_on_rank0(
+                    f"Merged {len(eval_data_paths)} eval datasets into "
+                    f"{len(eval_dataset)} samples"
+                )
             eval_eagle3_dataset = build_eagle3_dataset(
                 eval_dataset,
                 tokenizer,

@@ -6,7 +6,7 @@ import ast
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from sglang.utils import download_and_cache_file, read_jsonl
+from datasets import load_dataset
 
 from .base import Benchmarker
 from .registry import BENCHMARKS
@@ -52,10 +52,11 @@ class GSM8KBenchmarker(Benchmarker):
 
     def load_data(self) -> Tuple[List[Dict[str, Any]], List[int]]:
         """Load and preprocess GSM8K dataset."""
-        # Read data
-        url = "https://raw.githubusercontent.com/openai/grade-school-math/master/grade_school_math/data/test.jsonl"
-        data_path = download_and_cache_file(url)
-        lines = list(read_jsonl(data_path))
+        dataset = load_dataset("gsm8k", "main", split="test")
+        lines = list(dataset)
+        prompt_fmt = (
+            "{question}\nPlease reason step by step, and put your final answer within \\boxed{{}}."
+        )
 
         # Construct prompts
         few_shot_examples = get_few_shot_examples(lines, 5)
@@ -66,7 +67,7 @@ class GSM8KBenchmarker(Benchmarker):
             if self.num_samples is not None and i >= self.num_samples:
                 break
 
-            question_text = get_one_example(lines, i, False)
+            question_text = prompt_fmt.format(**lines[i])
             questions.append({"question": question_text})
             labels.append(get_answer_value(lines[i]["answer"]))
 

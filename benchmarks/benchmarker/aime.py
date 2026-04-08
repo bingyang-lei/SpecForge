@@ -66,14 +66,17 @@ class AIMEBenchmarker(Benchmarker):
 
     def load_data(self) -> Tuple[List[Dict[str, Any]], List[Optional[str]]]:
         """Load and preprocess AIME dataset."""
-        dataset = load_dataset("Maxwell-Jia/AIME_2024")["train"]
+        dataset = load_dataset("HuggingFaceH4/aime_2024", split="train")
+        prompt_fmt = (
+            "{problem}\nPlease reason step by step, and put your final answer within \\boxed{{}}."
+        )
         questions = []
         labels = []
         for idx, q in enumerate(dataset):
             if self.num_samples is not None and idx >= self.num_samples:
                 break
 
-            questions.append({"question": q["Problem"]})
+            questions.append({"question": prompt_fmt.format(**q)})
             # Extract answer from Answer field
             answer = None
             if "Answer" in q:

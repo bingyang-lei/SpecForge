@@ -73,7 +73,10 @@ class HumanEvalBenchmarker(Benchmarker):
 
     def load_data(self) -> Tuple[List[Dict[str, Any]], List[Optional[Dict[str, str]]]]:
         """Load and preprocess HumanEval dataset."""
-        dataset = load_dataset("openai/openai_humaneval")["test"]
+        dataset = load_dataset("openai/openai_humaneval", split="test")
+        prompt_fmt = (
+            "Write a solution to the following problem and make sure that it passes the tests:\n```python\n{prompt}\n```"
+        )
         questions = []
         labels = []
         self.test_cases = []
@@ -83,7 +86,7 @@ class HumanEvalBenchmarker(Benchmarker):
             if self.num_samples is not None and idx >= self.num_samples:
                 break
 
-            questions.append({"question": q["prompt"]})
+            questions.append({"question": prompt_fmt.format(**q)})
 
             # Store test case and entry point for evaluation
             test_code = q.get("test", "")

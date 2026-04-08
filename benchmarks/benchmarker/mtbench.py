@@ -5,7 +5,7 @@ Adapted from https://github.com/chromecast56/sglang/blob/6f145d2eadb93a116134f70
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from sglang.utils import download_and_cache_file, read_jsonl
+from datasets import load_dataset
 
 from .base import Benchmarker
 from .registry import BENCHMARKS
@@ -28,13 +28,11 @@ class MTBenchBenchmarker(Benchmarker):
 
     def load_data(self) -> Tuple[List[Dict[str, Any]], List[None]]:
         """Load and preprocess MT-Bench dataset."""
-        url = "https://raw.githubusercontent.com/lm-sys/FastChat/main/fastchat/llm_judge/data/mt_bench/question.jsonl"
-        download_and_cache_file(url, filename="mtbench.jsonl")
-        questions_data = list(read_jsonl("mtbench.jsonl"))
-        questions_data = questions_data
+        dataset = load_dataset("HuggingFaceH4/mt_bench_prompts", split="train")
+        questions_data = list(dataset)
 
         questions = [
-            {"question_1": q["turns"][0], "question_2": q["turns"][1]}
+            {"question_1": q["prompt"][0], "question_2": q["prompt"][1]}
             for q in questions_data
         ]
         # MT-Bench doesn't have labels for accuracy computation

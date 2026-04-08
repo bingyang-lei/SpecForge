@@ -16,7 +16,7 @@ fi
 
 ATTENTION_BACKEND=${2:-flex_attention}
 USE_KL=false
-KL_ALPHA=0.7
+KL_ALPHA=0.1
 IGNORE_GRAD_NORM=false
 
 KL_ARGS=""
@@ -36,7 +36,9 @@ sleep 3
 TRAIN_DATA_PATH='[
     "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/nemotron-math_and_code_no_think_qwen3-4b_regen.jsonl",
     "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/codealpaca-20k_no_think_qwen3-4b_regen.jsonl",
-    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/nemotron-stem_no_think_qwen3-4b_regen.jsonl"
+    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/nemotron-stem_no_think_qwen3-4b_regen.jsonl",
+    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/openmath-reasoning-rl_no_think_qwen3-4b_regen.jsonl",
+    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/math-stack_overflow-rl_no_think_qwen3-4b_regen.jsonl"
 ]'
 
 torchrun \
@@ -46,7 +48,7 @@ torchrun \
     --target-model-path "/mnt/shared-storage-user/p1-shared/Qwen/Qwen3-4B" \
     --draft-config-path $ROOT_DIR/configs/qwen3-4b-dflash.json \
     --train-data-path "$TRAIN_DATA_PATH" \
-    --output-dir $ROOT_DIR/outputs/qwen3-4b-dflash_data-instruct-exp \
+    --output-dir $ROOT_DIR/outputs/qwen3-4b-dflash_data_plus-instruct-bs4 \
     --num-epochs 10 \
     --batch-size 4 \
     --learning-rate 6e-4 \
@@ -58,8 +60,8 @@ torchrun \
     --num-anchors 512 \
     --loss-decay-gamma 7.0 \
     --log-interval 500 \
-    --save-interval 10000 \
-    --report-to none \
+    --save-interval 20000 \
+    --report-to wandb \
     --wandb-offline \
     --wandb-project specforge-qwen3-4b-dflash \
     --target-model-backend sglang \

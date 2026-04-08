@@ -59,13 +59,16 @@ class Math500Benchmarker(Benchmarker):
     def load_data(self) -> Tuple[List[Dict[str, Any]], List[Optional[str]]]:
         """Load and preprocess MATH-500 dataset."""
         dataset = load_dataset("HuggingFaceH4/MATH-500")["test"]
+        prompt_fmt = (
+            "{problem}\nPlease reason step by step, and put your final answer within \\boxed{{}}."
+        )
         questions = []
         labels = []
         for idx, q in enumerate(dataset):
             if self.num_samples is not None and idx >= self.num_samples:
                 break
 
-            questions.append({"question": q["problem"]})
+            questions.append({"question": prompt_fmt.format(**q)})
             # Extract answer from solution or answer field
             answer = None
             if "answer" in q:

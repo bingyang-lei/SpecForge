@@ -668,15 +668,15 @@ def main():
             (loss / args.accumulation_steps).backward()
 
             if global_step % args.accumulation_steps == 0:
-                optimizer.step()
-                # if not args.ignore_grad_norm:
-                #     last_grad_norm = (
-                #         grad_norm.detach()
-                #         if isinstance(grad_norm, torch.Tensor)
-                #         else torch.tensor(float(grad_norm), device=loss.device)
-                #     )
-                # else:
-                last_grad_norm = None
+                grad_norm = optimizer.step()
+                if not args.ignore_grad_norm:
+                    last_grad_norm = (
+                        grad_norm.detach()
+                        if isinstance(grad_norm, torch.Tensor)
+                        else torch.tensor(float(grad_norm), device=loss.device)
+                    )
+                else:
+                    last_grad_norm = None
 
             if global_step % args.log_interval == 0:
                 loss_log = loss.clone()
