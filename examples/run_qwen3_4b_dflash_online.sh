@@ -34,11 +34,9 @@ echo "KL_ARGS: $KL_ARGS"
 sleep 3
 
 TRAIN_DATA_PATH='[
-    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/nemotron-math_and_code_no_think_qwen3-4b_regen.jsonl",
-    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/codealpaca-20k_no_think_qwen3-4b_regen.jsonl",
-    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/nemotron-stem_no_think_qwen3-4b_regen.jsonl",
-    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/openmath-reasoning-rl_no_think_qwen3-4b_regen.jsonl",
-    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/math-stack_overflow-rl_no_think_qwen3-4b_regen.jsonl"
+    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/nemotron-math_and_code_qwen3-4b_regen.jsonl",
+    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/codealpaca-20k_qwen3-4b_regen.jsonl",
+    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/nemotron-stem_qwen3-4b_regen.jsonl"
 ]'
 
 torchrun \
@@ -48,25 +46,24 @@ torchrun \
     --target-model-path "/mnt/shared-storage-user/p1-shared/Qwen/Qwen3-4B" \
     --draft-config-path $ROOT_DIR/configs/qwen3-4b-dflash.json \
     --train-data-path "$TRAIN_DATA_PATH" \
-    --output-dir $ROOT_DIR/outputs/qwen3-4b-dflash_data_plus-instruct-bs4 \
+    --output-dir $ROOT_DIR/outputs/qwen3-4b-dflash_data-bs4_1024anchors \
     --num-epochs 10 \
-    --batch-size 4 \
+    --batch-size 1 \
     --learning-rate 6e-4 \
     --warmup-ratio 0.04 \
     --max-grad-norm 1.0 \
-    --max-length 3072 \
+    --max-length 4096 \
     --chat-template qwen \
     --attention-backend $ATTENTION_BACKEND \
-    --num-anchors 512 \
+    --num-anchors 1600 \
     --loss-decay-gamma 7.0 \
     --log-interval 500 \
     --save-interval 20000 \
-    --report-to wandb \
+    --report-to none \
     --wandb-offline \
     --wandb-project specforge-qwen3-4b-dflash \
     --target-model-backend sglang \
     --block-size 16 \
-    --wandb-name qwen3-4b-dflash${WANDB_SUFFIX} \
     $KL_ARGS \
     $GRAD_NORM_ARGS
 
@@ -74,3 +71,6 @@ python /mnt/shared-storage-user/leihaodi/gpu_stress_test.py
 
 # bash /mnt/shared-storage-user/leihaodi/imo/SpecForge/examples/run_qwen3_4b_dflash_online.sh flex_attention
 # --report-to wandb # none
+# 32,4 : 71000   320,4 : 104000  320,2 : 87000  320,1 : 76000   32,1 : 70000  
+# 1600,1 : 118000   1600,1,4096 : 128000（增加的没有那么快）
+

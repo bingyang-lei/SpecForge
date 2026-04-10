@@ -1,0 +1,29 @@
+[1] SYSTEM
+
+
+[2] USER
+A C-band SAR satellite observes agricultural fields over a full crop growth cycle. The backscatter coefficient σ⁰ shows higher values in the early growing season but decreases as the crop matures. Simultaneously, X-band SAR observations show minimal change in σ⁰ throughout the cycle. Which factor explains this discrepancy **most accurately**?
+
+A: Greater penetration depth of C-band allows interaction with variable soil moisture beneath the canopy
+B: Shorter wavelength of X-band increases sensitivity to small-leafed crops
+C: Dielectric constant of vegetation decreases at C-band frequencies over time
+D: Stronger volume scattering in X-band dominates throughout the growth cycle
+E: Brewster angle effect is more pronounced at C-band on vegetated surfaces
+F: Rayleigh scattering regime applies to X-band for all growth stages
+G: Fresnel reflection coefficients increase with canopy density at C-band
+H: Double-bounce scattering decreases at X-band as plants grow
+I: Attenuation due to vegetation is wavelength-independent
+J: C-band experiences stronger canopy attenuation reducing soil contributions as biomass increases, while X-band primarily senses the top canopy layer consistently
+
+[3] ASSISTANT
+The correct answer is: **J: C-band experiences stronger canopy attenuation reducing soil contributions as biomass increases, while X-band primarily senses the top canopy layer consistently**
+
+---
+
+### Explanation:
+
+The key to understanding this question lies in the **difference in how C-band and X-band SAR systems interact with vegetation** during the crop growth cycle.
+
+- **C-band (L-band)** has **longer wavelength** and **greater penetration depth** into the vegetation canopy and soil. This means it can **penetrate deeper into the canopy and soil**, allowing it to **sense soil moisture and biomass changes** more effectively. As the crop matures and biomass increases, the **canopy becomes denser**, leading to **greater attenuation** of the C-band signal. This **reduces the contribution from the soil** and increases the **dominance of canopy scattering**.
+
+- **X-band (K-band)** has **shorter wavelength** and **less penetration depth**. It is more sensitive to the **top layer of the canopy**, such as the **leaves and stems**, and is less affected by the **underlying soil**. As the crop matures, the **canopy becomes denser**, but X-band still **primarily interacts with the top layer**, so its **

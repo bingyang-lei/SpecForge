@@ -1,0 +1,31 @@
+[1] SYSTEM
+
+
+[2] USER
+A customer service manager notices that when dealing with new clients who speak more formally, one of her long-time employees, who usually uses casual language and slang, begins to use more formal vocabulary and sentence structures. This employee explains they observed the manager doing this and thought it helped build rapport with this type of client. According to Communication Accommodation Theory (CAT), what strategy is the employee primarily using?
+A: Divergence
+B: Maintenance
+C: Convergence
+D: Over-accommodation
+
+[3] ASSISTANT
+According to **Communication Accommodation Theory (CAT)**, the correct answer is:
+
+**C: Convergence**
+
+### Explanation:
+
+**Communication Accommodation Theory** (CAT) explains how people adjust their communication styles to either **converge** (become more similar to others) or **diverge** (become more different from others) in order to build rapport, establish social identity, or maintain social distance.
+
+In this scenario:
+
+- The employee, who usually uses **casual language and slang**, begins to use **more formal vocabulary and sentence structures**.
+- This change is **motivated by observing the manager** and thinking it helps **build rapport** with formal clients.
+- This is a **strategic adjustment** to align more closely with the **communication style of the manager** and the **formal expectations of the clients**.
+
+This is a classic example of **convergence** — the process of becoming more similar in communication style to others (in this case, the manager and the formal clients).
+
+### Why not the other options?
+
+- **A: Divergence** — This would mean the employee is becoming more different in communication style, which is not the case here.
+- **B: Maintenance** — This refers to maintaining one's own communication

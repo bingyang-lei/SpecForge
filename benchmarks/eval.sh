@@ -1,0 +1,11 @@
+python3 bench_eagle3.py \
+    --model-path /mnt/shared-storage-user/p1-shared/Qwen/Qwen3-4B \
+    --speculative-draft-model-path /mnt/shared-storage-user/leihaodi/imo/SpecForge/outputs/qwen3-4b-eagle3-dflash_data-think/epoch_9_step_240000 \
+    --port 30000 \
+    --trust-remote-code \
+    --mem-fraction-static 0.8 \
+    --tp-size 1 \
+    --attention-backend fa3 \
+    --config-list 1,0,0,0 1,3,1,4 \
+    --benchmark-list mtbench gsm8k:128 \
+    --dtype bfloat16

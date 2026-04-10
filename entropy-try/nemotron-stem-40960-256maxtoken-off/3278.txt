@@ -1,0 +1,33 @@
+[1] SYSTEM
+
+
+[2] USER
+In epidemiology, a disease described as "sporadic" refers to a disease that is:
+
+A: Constantly present at a baseline level in a specific geographic area
+B: Occurring irregularly and infrequently
+C: Widespread over several countries or continents
+D: Showing a persistent, high prevalence in a population
+E: Limited to a specific, isolated outbreak
+F: Occurring predictably in seasonal patterns
+G: Affecting a large number of individuals simultaneously in a community
+H: Transmitted directly from animals to humans
+I: Present only as isolated, unconnected cases worldwide
+J: Caused by systematic failures in public health
+
+[3] ASSISTANT
+The correct answer is: **B: Occurring irregularly and infrequently**
+
+### Explanation:
+In epidemiology, the term **"sporadic"** refers to a disease that occurs **irregularly and infrequently** in a population. It is not constant, widespread, or predictable in occurrence. Sporadic diseases are not part of a continuous or epidemic pattern but appear occasionally.
+
+### Other options explained:
+- **A**: This describes **endemic** diseases, not sporadic.
+- **C**: This describes **epidemic** or **pandemic** diseases.
+- **D**: This is also more consistent with **endemic** or **epidemic** diseases.
+- **E**: This is more consistent with an **epidemic** or **pandemic**.
+- **F**: This describes **seasonal** or **epidemic** patterns.
+- **G**: This is an **epidemic** description.
+- **H**: This is a description of **zoonotic** transmission, not related to the term "sporadic."
+- **I**: This is more consistent with **epidemic** or **pandemic**.
+- **J**: This is not related to the term "spor

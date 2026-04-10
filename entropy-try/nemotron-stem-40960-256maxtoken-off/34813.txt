@@ -1,0 +1,44 @@
+[1] SYSTEM
+
+
+[2] USER
+In RF circuit design, a quarter-wave transformer is designed to match a transmission line with characteristic impedance \( Z_0 = 50 \  \Omega \) to a resistive load \( Z_L = 100 \  \Omega \). What characteristic impedance must the transformer have to achieve maximum power transfer at the center frequency, and what is a key limitation?
+
+A: \( 70.7 \ \Omega \); it only matches at the design frequency
+B: \( 70.7 \ \Omega \); it works equally well at all odd harmonics
+C: \( 100 \ \Omega \); it introduces significant phase shift
+D: \( 50 \ \Omega \); it requires a specific physical length
+E: \( 100 \ \Omega \); it only matches at the design frequency
+F: \( 70.7 \ \Omega \); it depends solely on the load resistance
+G: \( 50 \ \Omega \); it also works at twice the design frequency
+H: \( 50 \ \Omega \); it requires the load to be purely resistive
+I: \( 70.7 \ \Omega \); the transformer length is independent of frequency
+J: \( 100 \ \Omega \); it causes minimal reflection at DC
+
+[3] ASSISTANT
+To determine the correct answer, let's analyze the question and the properties of a **quarter-wave transformer** in RF circuit design.
+
+---
+
+### **Key Concepts:**
+
+- A **quarter-wave transformer** is a transmission line of length **λ/4** (one-quarter of a wavelength) that is used to match impedances.
+- The **characteristic impedance** $ Z_{\text{transformer}} $ of the quarter-wave transformer is chosen such that:
+  $$
+  Z_{\text{transformer}} = \sqrt{Z_0 \cdot Z_L}
+  $$
+  where:
+  - $ Z_0 $ is the impedance of the transmission line (here, 50 Ω),
+  - $ Z_L $ is the load impedance (here, 100 Ω).
+
+- This formula gives the **optimal impedance** for the quarter-wave transformer to achieve **maximum power transfer** at the **design frequency**.
+
+---
+
+### **Calculation:**
+
+$$
+Z_{\text{transformer}} = \sqrt{50 \cdot 100} = \sqrt{5000} \approx 70.7 \ \Omega
+$$
+
+So, the **characteristic impedance of the

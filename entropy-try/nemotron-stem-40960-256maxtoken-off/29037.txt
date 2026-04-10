@@ -1,0 +1,36 @@
+[1] SYSTEM
+
+
+[2] USER
+Within the classic hexagonal hepatic lobule model, consider the directional flow of blood and bile, metabolic zonation patterns, and the anatomical relationships between structures. Which of the following statements most accurately describes a fundamental functional implication of this structural organization?
+
+A: Oxygen tension increases progressively from periportal to pericentral hepatocytes, favoring oxidative metabolism in zone 3
+B: Ammonia detoxification occurs predominantly in pericentral hepatocytes due to proximity to the central vein
+C: Bile secretion follows a centrifugal flow pattern, moving from the central vein toward portal triads
+D: Gluconeogenesis is zonated primarily to zone 1 hepatocytes due to higher oxygen availability
+E: Cytochrome P450 enzymes exhibit highest activity in periportal hepatocytes (zone 1)
+F: Sinusoidal endothelial fenestrations increase in size and density from zone 1 to zone 3
+G: Kupffer cells are distributed uniformly across all zones of the lobule
+H: Nutrient-rich blood from the portal vein mixes completely with oxygenated blood from the hepatic artery before entering sinusoids
+I: Insulin and glucagon concentrations are equal across all zones upon entry into the lobule
+J: Xenobiotic metabolism occurs exclusively in the pericentral region due to lower reducing equivalents available
+
+[3] ASSISTANT
+The correct answer is: **A: Oxygen tension increases progressively from periportal to pericentral hepatocytes, favoring oxidative metabolism in zone 3**
+
+---
+
+### Explanation:
+
+In the **classic hexagonal hepatic lobule model**, the liver is organized in a **central-to-periportal** gradient, with the **portal triads** (portal vein, hepatic artery, and bile duct) located at the **periportal region**, and the **central vein** at the **center** of the lobule.
+
+#### Key Features of the Lobule:
+
+- **Blood flow**: Blood enters via the **portal vein** and **hepatic artery**, flows through **sinusoids**, and exits via the **central vein**.
+- **Bile flow**: Bile is secreted from **canaliculi** into the **bile ducts**, which are located near the **portal triads**.
+- **Metabolic zonation**:
+  - **Zone 1**: Periportal (high oxygen, high nutrients, low metabolic activity)
+  - **Zone 2**: Central (moderate oxygen, moderate metabolism)
+  - **Zone 3**: Pericentral (low oxygen, high metabolic activity, especially oxidative metabolism)
+
+#### Functional Implications

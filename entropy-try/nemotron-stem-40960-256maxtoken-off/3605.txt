@@ -1,0 +1,32 @@
+[1] SYSTEM
+
+
+[2] USER
+Which spectral band is most effective for mapping submerged coral reefs in clear shallow waters due to its ability to penetrate water?
+
+A: Ultraviolet
+B: Blue-green visible
+C: Near-infrared
+D: Mid-infrared
+E: Thermal infrared
+F: Microwave
+G: X-ray
+H: Gamma ray
+I: Radio wave
+J: Red visible
+
+[3] ASSISTANT
+The most effective spectral band for mapping submerged coral reefs in **clear shallow waters** is:
+
+**B: Blue-green visible**
+
+### Explanation:
+
+- **Blue-green visible light** (approximately 450–650 nm) is most effective for underwater mapping because it **penetrates water more effectively** than other wavelengths.
+- In clear water, blue and green light can travel deeper than red or near-infrared, allowing for better visibility of coral reefs and other underwater features.
+- This is why **remote sensing technologies** like **multispectral or hyperspectral imaging** using blue-green wavelengths are commonly used in **underwater mapping** and **aquatic environmental monitoring**.
+- Other options like **near-infrared (C)** or **thermal infrared (E)** are not effective in water, as they are absorbed quickly.
+- **Microwave (F)** and **radio wave (I)** can penetrate water but lack the resolution needed for detailed mapping of coral reefs.
+- **Ultraviolet (A)**, **red visible (J)**, **mid-infrared (D)**, **thermal infrared (E)**, **X-ray (G)**, and **gamma ray (H)** are either absorbed too quickly or not useful for this purpose.
+
+### Correct
