@@ -18,7 +18,7 @@ ATTENTION_BACKEND=${2:-flex_attention}
 USE_KL=false
 KL_ALPHA=0.1
 IGNORE_GRAD_NORM=false
-USE_EAGLE3_LOSS=true
+USE_EAGLE3_LOSS=false
 KL_ARGS=""
 WANDB_SUFFIX=""
 GRAD_NORM_ARGS=""
@@ -48,22 +48,17 @@ sleep 3
 #     "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/math-stack_overflow-rl_qwen3-4b_regen.jsonl"
 # ]'
 
-TRAIN_DATA_PATH='[
-    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/nemotron-math_and_code_qwen3-4b_regen.jsonl",
-    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/codealpaca-20k_qwen3-4b_regen.jsonl",
-    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/nemotron-stem_qwen3-4b_regen.jsonl"
-]'
-
 # TRAIN_DATA_PATH='[
-#     "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/test_dataset/acp_app_bool_qwen3-4b_regen.jsonl",
-#     "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/test_dataset/acp_app_gen_qwen3-4b_regen.jsonl",
-#     "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/test_dataset/aime24_qwen3-4b_regen.jsonl",
-#     "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/test_dataset/aime25_qwen3-4b_regen.jsonl",
-#     "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/test_dataset/gsm8k_qwen3-4b_regen.jsonl",
-#     "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/test_dataset/math500_qwen3-4b_regen.jsonl",
-#     "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/test_dataset/mbpp_qwen3-4b_regen.jsonl",
-#     "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/test_dataset/humaneval_qwen3-4b_regen.jsonl"
+#     "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/nemotron-math_and_code_qwen3-4b_regen.jsonl",
+#     "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/codealpaca-20k_qwen3-4b_regen.jsonl",
+#     "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/nemotron-stem_qwen3-4b_regen.jsonl"
 # ]'
+
+TRAIN_DATA_PATH='[
+    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/nll-fliter-data/codealpaca-20k_qwen3-4b_regen_nll_top50.jsonl",
+    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/nll-fliter-data/nemotron-math_and_code_qwen3-4b_regen_nll_top50.jsonl",
+    "/mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/nll-fliter-data/nemotron-stem_qwen3-4b_regen_nll_top50.jsonl"
+]'
 
 torchrun \
     --standalone \
@@ -72,10 +67,10 @@ torchrun \
     --target-model-path "/mnt/shared-storage-user/p1-shared/Qwen/Qwen3-4B" \
     --draft-config-path $ROOT_DIR/configs/qwen3-4b-dflash.json \
     --train-data-path "$TRAIN_DATA_PATH" \
-    --output-dir $ROOT_DIR/outputs/qwen3-4b-dflash-eagle3loss-right \
+    --output-dir $ROOT_DIR/outputs/qwen3-4b-dflash-filter \
     --num-epochs 10 \
     --batch-size 2 \
-    --learning-rate 5e-4 \
+    --learning-rate 6e-4 \
     --warmup-ratio 0.04 \
     --max-grad-norm 1.0 \
     --max-length 3072 \

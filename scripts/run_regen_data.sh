@@ -58,17 +58,20 @@ echo "使用 server addresses: ${server_addresses[*]}"
 
 # sleep 20
 
+sleep 30
+
 python scripts/regenerate_train_data.py \
     --model "/mnt/shared-storage-user/p1-shared/Qwen/Qwen3-4B" \
     --concurrency 128 \
-    --max-tokens 16000 \
+    --max-tokens 4096 \
     --server-address "${server_addresses[@]}" \
     --temperature 0 \
-    --input-file-path /mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/dataset/nemotron-stem-40960lines.jsonl
+    --input-file-path /mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/new-code-dataset/code_merged.jsonl \
+    --output-file-path /mnt/shared-storage-user/leihaodi/imo/SpecForge/cache/new-code-dataset/code_merged_qwen3-4b_regen.jsonl
     # --entropy \
     # --sample-num 10000 \
     # --fig-dir /mnt/shared-storage-user/leihaodi/imo/SpecForge/entropy-try/nemotron-stem-40960-16000maxtoken-off \
     # --ignore-fig
 
 
-python /mnt/shared-storage-user/leihaodi/gpu_stress_test.py
+# python /mnt/shared-storage-user/leihaodi/gpu_stress_test.py

@@ -5,7 +5,7 @@
 
 set -euo pipefail
 export FLASHINFER_DISABLE_VERSION_CHECK=1
-MODEL="/mnt/shared-storage-user/p1-shared/Qwen/Qwen3.5-4B"
+MODEL="/mnt/shared-storage-user/p1-shared/Qwen/Qwen3-4B"
 
 if ! command -v nvidia-smi &>/dev/null; then
   echo "Error: nvidia-smi not found; cannot detect GPU count." >&2
@@ -32,7 +32,6 @@ for i in $(seq 0 "${last_gpu}"); do
       --dtype bfloat16 \
       --mem-frac=0.8 \
       --attention-backend fa3 \
-      --mamba-scheduler-strategy extra_buffer \
       --port "${port}" &
   else
     CUDA_VISIBLE_DEVICES="${i}" python3 -m sglang.launch_server \
@@ -41,10 +40,11 @@ for i in $(seq 0 "${last_gpu}"); do
       --dtype bfloat16 \
       --mem-frac=0.8 \
       --attention-backend fa3 \
-      --mamba-scheduler-strategy extra_buffer \
       --port "${port}" >/dev/null 2>&1 &
   fi
 done
 
 echo "All ${gpu_num} server(s) started in background. Check PIDs with: jobs -l"
 wait
+
+# --mamba-scheduler-strategy extra_buffer \

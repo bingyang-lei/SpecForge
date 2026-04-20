@@ -9,3 +9,5 @@ pip uninstall flashinfer_jit_cache -y
 cd /mnt/shared-storage-user/leihaodi/imo/flashinfer_pkgs
 python -m pip install flashinfer_jit_cache-0.6.3+cu129-cp39-abi3-manylinux_2_28_x86_64.whl
 cd /mnt/shared-storage-user/leihaodi/imo/SpecForge
+
+# python -m pip install /mnt/shared-storage-user/leihaodi/imo/flash_attn-2.7.4.post1+cu12torch2.7cxx11abiTRUE-cp312-cp312-linux_x86_64.whl

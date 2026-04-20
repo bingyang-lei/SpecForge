@@ -174,6 +174,11 @@ def parse_args():
         help="If set, do not log gradient norm to tracker/wandb.",
     )
     model_group.add_argument(
+        "--use-eagle3-loss",
+        action="store_true",
+        help="If set, use Eagle3-style logits-vs-logits LogSoftmaxLoss against target-model logits instead of DFlash token-weighted hard CE.",
+    )
+    model_group.add_argument(
         "--embedding-key",
         type=str,
         default=None,
@@ -584,6 +589,7 @@ def main():
         loss_decay_gamma=args.loss_decay_gamma,
         use_kl_loss=args.use_kl,
         kl_alpha=args.kl_alpha,
+        use_eagle3_loss=args.use_eagle3_loss,
     )
 
     dflash_model = FSDP(

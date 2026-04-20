@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from specforge.core.loss import LogSoftmaxLoss
 from specforge.modeling.draft.dflash import DFlashDraftModel
 
 try:
@@ -108,6 +109,7 @@ class OnlineDFlashModel(nn.Module):
         loss_decay_gamma: Optional[float] = None,
         use_kl_loss: bool = False,
         kl_alpha: float = 0.7,
+        use_eagle3_loss: bool = False,
     ):
         super().__init__()
         self.draft_model = draft_model
@@ -120,6 +122,7 @@ class OnlineDFlashModel(nn.Module):
         self.loss_decay_gamma = loss_decay_gamma
         self.use_kl_loss = use_kl_loss
         self.kl_alpha = kl_alpha
+        self.use_eagle3_loss = use_eagle3_loss
 
         self._cached_block_mask: Optional[BlockMask] = None
         self._cached_seq_len: Optional[int] = None
@@ -311,10 +314,45 @@ class OnlineDFlashModel(nn.Module):
         flat_targets = target_ids.view(-1)
         flat_weights = weight_mask.view(-1)
 
-        # Hard CE Loss (original)
+        # Hard CE loss.
+        # - default: token-level weighted mean (existing DFlash behavior)
+        # - eagle3 mode: logits-vs-logits LogSoftmaxLoss (same form as Eagle3)
         loss_per_token = F.cross_entropy(flat_logits, flat_targets, reduction="none")
         valid_token_count = flat_weights.sum() + 1e-6
-        hard_ce_loss = (loss_per_token * flat_weights).sum() / valid_token_count
+        if self.use_eagle3_loss:
+            if (
+                teacher_hidden_states is None
+                or teacher_hidden_states.size(-1) != self.lm_head.in_features
+            ):
+                raise ValueError(
+                    "use_eagle3_loss=True requires teacher_hidden_states with compatible hidden size."
+                )
+
+            teacher_hidden = teacher_hidden_states
+            # Causal alignment: logits at position t predict token at t+1.
+            # Since labels are gathered at label_indices, teacher logits should come
+            # from label_indices - 1 to supervise the same next-token prediction.
+            teacher_logit_indices = (safe_label_indices - 1).clamp(min=0)
+            with torch.no_grad():
+                teacher_hidden_gathered = torch.gather(
+                    teacher_hidden.unsqueeze(1).expand(
+                        -1, anchor_positions.size(1), -1, -1
+                    ),
+                    2,
+                    teacher_logit_indices.unsqueeze(-1).expand(
+                        -1, -1, -1, teacher_hidden.size(-1)
+                    ),
+                )
+                teacher_logits = self.lm_head(teacher_hidden_gathered)
+                target_p = F.softmax(teacher_logits.float(), dim=-1).detach()
+
+            # LogSoftmaxLoss consumes [B, T, V] logits and [B, T, 1] position mask.
+            seq_logits = logits.view(bsz, -1, logits.size(-1))
+            seq_target_p = target_p.view(bsz, -1, target_p.size(-1))
+            position_mask = (weight_mask > 0).view(bsz, -1, 1)
+            hard_ce_loss = LogSoftmaxLoss.apply(seq_logits, seq_target_p, position_mask)
+        else:
+            hard_ce_loss = (loss_per_token * flat_weights).sum() / valid_token_count
 
         weighted_kl_component = None
         weighted_ce_component = None
